@@ -46,7 +46,7 @@ class GolemioApi:
         for response in json_responses:
             all_stations.extend(response)
         with open('data/all_stations.json', 'w') as f:
-            json.dump(all_stations, f, ensure_ascii=True, indent=4)
+            json.dump(all_stations, f, ensure_ascii=False, indent=4)
 
 
 
