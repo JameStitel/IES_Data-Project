@@ -10,6 +10,8 @@ class GolemioApi:
         self.headers = {'X-Access-Token': self.api_key}
         self.limit_per_page = 1000
         self.base_uri = 'https://api.golemio.cz/v1/'
+        self.all_stations_path = 'data/all_stations.json'
+        self.all_stations_ids_path = 'data/all_stations_ids.json'
 
     @staticmethod
     def _load_api_key(api_key_path: str) -> str:
@@ -45,9 +47,27 @@ class GolemioApi:
         all_stations = []
         for response in json_responses:
             all_stations.extend(response)
-        with open('data/all_stations.json', 'w') as f:
-            json.dump(all_stations, f, ensure_ascii=False, indent=4)
+        with open(self.all_stations_path, 'w') as output_f:
+            json.dump(all_stations, output_f, ensure_ascii=False, indent=4)
 
+    def filter_station_ids(self):
+        with open(self.all_stations_path) as input_f:
+            all_stations = json.load(input_f)
+        all_ids = {}
+        for station in all_stations:
+            parent_station_id = station['properties']['parent_station']
+            this_station_id = station['properties']['stop_id']
+            if parent_station_id:
+                if parent_station_id in all_ids:
+                    if this_station_id not in all_ids[parent_station_id]:
+                        all_ids[parent_station_id].append(this_station_id)  # OMG such a mess
+                else:
+                    all_ids[parent_station_id] = [this_station_id]
+            else:
+                if this_station_id not in all_ids:
+                    all_ids[this_station_id] = []
+        with open(self.all_stations_ids_path, 'w') as output_f:
+            json.dump(all_ids, output_f, ensure_ascii=False, indent=4)
 
 
 
@@ -79,5 +99,5 @@ def main():
 if __name__ == '__main__':
     my_api_key_path = 'golemio_api_key.json'
     golemio = GolemioApi(my_api_key_path)
-    golemio.download_all_stations()
-
+    # golemio.download_all_stations()
+    golemio.filter_station_ids()
