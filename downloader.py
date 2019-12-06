@@ -1,3 +1,5 @@
+from typing import Generator
+
 import requests
 import pandas as pd
 import time
@@ -31,7 +33,7 @@ class GolemioApi:
             raise ConnectionError(f'Request failed with status code: {response.status_code}')
         return response.json()
 
-    def _download_all_pages(self, endpoint: str, features: bool):
+    def _download_all_pages(self, endpoint: str, features: bool) -> Generator:
         n = 0
         while True:
             json_response = self._download_page(endpoint, offset=n)
@@ -41,14 +43,18 @@ class GolemioApi:
                 break
             yield json_response
 
+    @staticmethod
+    def _save_into_json(data: list or dict, file_path: str):
+        with open(file_path, 'w') as output_f:
+            json.dump(data, output_f, ensure_ascii=False, indent=4)
+
     def download_all_stations(self):
         endpoint = 'gtfs/stops'
         json_responses = self._download_all_pages(endpoint, features=True)
         all_stations = []
         for response in json_responses:
             all_stations.extend(response)
-        with open(self.all_stations_path, 'w') as output_f:
-            json.dump(all_stations, output_f, ensure_ascii=False, indent=4)
+        self._save_into_json(all_stations, self.all_stations_path)
 
     def filter_station_ids(self):
         with open(self.all_stations_path) as input_f:
@@ -66,8 +72,10 @@ class GolemioApi:
             else:
                 if this_station_id not in all_ids:
                     all_ids[this_station_id] = []
-        with open(self.all_stations_ids_path, 'w') as output_f:
-            json.dump(all_ids, output_f, ensure_ascii=False, indent=4)
+        self._save_into_json(all_ids, self.all_stations_ids_path)
+
+
+
 
 
 
