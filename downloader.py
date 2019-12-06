@@ -56,25 +56,49 @@ class GolemioApi:
             all_stations.extend(response)
         self._save_into_json(all_stations, self.all_stations_path)
 
-    def filter_station_ids(self):
+    @staticmethod
+    def _save_into_ids_dict(all_ids: dict, parent_station_id: str, station_id: str, station_location: dict,
+                            station_name: str) -> dict:
+        if parent_station_id:  # ~ if is a child station
+            if parent_station_id in all_ids:  # ~ if this child station`s parent is already saved
+                if station_id not in all_ids[parent_station_id]['children']:  # prevent duplication of children
+                    all_ids[parent_station_id]['children'].append(station_id)
+            else:  # ~ if no parent for this child station was found, then save the parent reference
+                all_ids[parent_station_id] = {
+                    'name': None,
+                    'location': None,
+                    'children': [station_id],
+                }
+        else:  # ~ if this is the parent station itself
+            if station_id in all_ids:  # ~ if there was empty reference to parent created from children station
+                all_ids[station_id]['name'] = station_name
+                all_ids[station_id]['location'] = station_location
+            else:
+                all_ids[station_id] = {
+                    'name': station_name,
+                    'location': station_location,
+                    'children': [],
+                }
+        return all_ids
+
+    def filter_station_ids_enriched(self):  # todo maybe aggregate not only based on parent stations, but &&same names??
         with open(self.all_stations_path) as input_f:
             all_stations = json.load(input_f)
         all_ids = {}
         for station in all_stations:
             parent_station_id = station['properties']['parent_station']
-            this_station_id = station['properties']['stop_id']
-            if parent_station_id:
-                if parent_station_id in all_ids:
-                    if this_station_id not in all_ids[parent_station_id]:
-                        all_ids[parent_station_id].append(this_station_id)  # OMG such a mess
-                else:
-                    all_ids[parent_station_id] = [this_station_id]
-            else:
-                if this_station_id not in all_ids:
-                    all_ids[this_station_id] = []
+            station_id = station['properties']['stop_id']
+            station_location = {
+                'lat': station['properties']['stop_lat'],
+                'lon': station['properties']['stop_lon'],
+            }
+            station_name = station['properties']['stop_name']
+            all_ids = self._save_into_ids_dict(all_ids, parent_station_id, station_id, station_location, station_name)
         self._save_into_json(all_ids, self.all_stations_ids_path)
 
-
+    # def count_stop_times_per_day(self):
+    #     with open(self.all_stations_ids_path) as input_f:
+    #         all_ids = json.load(input_f)
 
 
 
@@ -108,4 +132,4 @@ if __name__ == '__main__':
     my_api_key_path = 'golemio_api_key.json'
     golemio = GolemioApi(my_api_key_path)
     # golemio.download_all_stations()
-    golemio.filter_station_ids()
+    golemio.filter_station_ids_enriched()
