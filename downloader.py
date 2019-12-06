@@ -1,10 +1,21 @@
 from typing import Generator
 
+import grequests
 import requests
 import pandas as pd
 import time
 import json
 
+# class AsyncRequests:
+#     def __init__(self, urls: list):
+#         self.urls = urls
+#
+#     def exception(self, request, exception):
+#         print("Problem: {}: {}".format(request.url, exception))
+#
+#     def async(self):
+#         results = grequests.map((grequests.get(u) for u in self.urls), exception_handler=self.exception, size=5)
+#         print(results)
 
 class GolemioApi:
     def __init__(self, api_key_path: str):
@@ -14,6 +25,7 @@ class GolemioApi:
         self.base_uri = 'https://api.golemio.cz/v1/'
         self.all_stations_path = 'data/all_stations.json'
         self.all_stations_ids_path = 'data/all_stations_ids.json'
+        self.all_stop_count_path = 'data/all_stop_count'  # need to append '_date.json'
 
     @staticmethod
     def _load_api_key(api_key_path: str) -> str:
@@ -24,8 +36,8 @@ class GolemioApi:
     def _download_page(self, endpoint: str, offset: int, debug: bool = False, **kwargs):
         parameters = ''
         for arg, value in kwargs.items():
-            parameters += f'&{arg}={value}'
-        uri = f'{self.base_uri}{endpoint}?limit={self.limit_per_page}&offset={offset}{parameters}'
+            parameters += f'{arg}={value}&'
+        uri = f'{self.base_uri}{endpoint}?{parameters}limit={self.limit_per_page}&offset={offset}'
         response = requests.get(uri, headers=self.headers)
         if debug:
             print(f'code: {response.status_code}, text: {response.text}')
@@ -33,10 +45,10 @@ class GolemioApi:
             raise ConnectionError(f'Request failed with status code: {response.status_code}')
         return response.json()
 
-    def _download_all_pages(self, endpoint: str, features: bool) -> Generator:
+    def _download_all_pages(self, endpoint: str, features: bool, debug: bool = False, **kwargs) -> Generator:
         n = 0
         while True:
-            json_response = self._download_page(endpoint, offset=n)
+            json_response = self._download_page(endpoint, offset=n, debug=debug, **kwargs)
             json_response = json_response['features'] if features else json_response
             n += len(json_response)
             if len(json_response) == 0:
@@ -96,40 +108,36 @@ class GolemioApi:
             all_ids = self._save_into_ids_dict(all_ids, parent_station_id, station_id, station_location, station_name)
         self._save_into_json(all_ids, self.all_stations_ids_path)
 
-    # def count_stop_times_per_day(self):
-    #     with open(self.all_stations_ids_path) as input_f:
-    #         all_ids = json.load(input_f)
+    def _get_stop_count_for_station_per_day(self, station_id: str, date: str) -> int:
+        endpoint = f'gtfs/stoptimes/{station_id}'
+        kwargs = {
+            'date': date
+        }
+        json_responses = self._download_all_pages(endpoint, features=False, debug=False, **kwargs)
+        stop_count = 0
+        for response in json_responses:
+            stop_count += len(response)
+        return stop_count
 
+    def count_stop_times_per_day(self, date: str):
+        with open(self.all_stations_ids_path) as input_f:
+            all_ids = json.load(input_f)
+        n_done = 0
+        n_all = len(all_ids)
+        for station, properties in all_ids.items():  # TODO wayyyyyyy toooo slow, batch requests?
+            stop_count = self._get_stop_count_for_station_per_day(station, date)
+            for child_station in properties['children']:
+                stop_count += self._get_stop_count_for_station_per_day(child_station, date)
+            properties['stop_count'] = stop_count
+            n_done += 1
+            if n_done % 100 == 0:
+                print(f'Stops counted for {n_done} stations out of {n_all}')
+        self._save_into_json(all_ids, f'{self.all_stop_count_path}_{date}.json')
 
-
-
-
-"""
-def main():
-    n = 0
-    while True:
-        # print(n)
-        # uri = f'https://api.golemio.cz/v1/gtfs/stops?limit=100&offset={n}'  # stations
-        # uri = f'https://api.golemio.cz/v1/gtfs/trips?limit=1&offset={n}&stopId=U363Z1P'  # trips through Malvazinky
-        uri = f'https://api.golemio.cz/v1/gtfs/stoptimes/U363Z1P?date=2019-12-04&limit=1&offset={n}&includeStop=true'
-        # uri = f'https://api.golemio.cz/v1/vehiclepositions?limit=1&offset={n}&includePositions=true'  # vehicle positions
-        json_response = requests.get(uri, headers=headers).json()  # stations
-
-        n += len(json_response)
-        if len(json_response) == 0:
-            break
-        # n += len(json_response['features'])
-        # ids = [x for x in json_response['features'] if x['properties']['stop_name'] == 'Malvazinky']
-        # if ids:
-        #     print(ids)
-        print(json_response)
-        # break
-
-    # U363Z1P - Malvazinky
-"""
 
 if __name__ == '__main__':
     my_api_key_path = 'golemio_api_key.json'
     golemio = GolemioApi(my_api_key_path)
     # golemio.download_all_stations()
-    golemio.filter_station_ids_enriched()
+    # golemio.filter_station_ids_enriched()
+    golemio.count_stop_times_per_day('2019-12-06')
