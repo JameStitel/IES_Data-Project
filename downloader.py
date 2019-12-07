@@ -2,20 +2,12 @@ from typing import Generator
 
 import grequests
 import requests
-import pandas as pd
+from requests_threads import AsyncSession
+# import pandas as pd
 import time
 import json
+from itertools import islice
 
-# class AsyncRequests:
-#     def __init__(self, urls: list):
-#         self.urls = urls
-#
-#     def exception(self, request, exception):
-#         print("Problem: {}: {}".format(request.url, exception))
-#
-#     def async(self):
-#         results = grequests.map((grequests.get(u) for u in self.urls), exception_handler=self.exception, size=5)
-#         print(results)
 
 class GolemioApi:
     def __init__(self, api_key_path: str):
@@ -26,6 +18,7 @@ class GolemioApi:
         self.all_stations_path = 'data/all_stations.json'
         self.all_stations_ids_path = 'data/all_stations_ids.json'
         self.all_stop_count_path = 'data/all_stop_count'  # need to append '_date.json'
+        self.__counted_stops = {}
 
     @staticmethod
     def _load_api_key(api_key_path: str) -> str:
@@ -119,20 +112,98 @@ class GolemioApi:
             stop_count += len(response)
         return stop_count
 
+    def _build_list_of_uris_for_count_stop(self, all_ids: dict, date: str) -> list:
+        uris = []
+        offset = 0
+
+        kwargs = {
+            'date': date
+        }
+        parameters = ''
+        for arg, value in kwargs.items():
+            parameters += f'{arg}={value}&'
+
+        for station, properties in all_ids.items():
+            station_id = station
+            endpoint = f'gtfs/stoptimes/{station_id}'
+            uri = f'{self.base_uri}{endpoint}?{parameters}limit={self.limit_per_page}&offset={offset}'
+            uris.append(uri)
+            for child_station in properties['children']:
+                station_id = child_station
+                endpoint = f'gtfs/stoptimes/{station_id}'
+                uri = f'{self.base_uri}{endpoint}?{parameters}limit={self.limit_per_page}&offset={offset}'
+                uris.append(uri)
+        return uris
+
+    def _build_list_of_uris_for_count_stop_cont(self, date: str) -> list:
+        uris = []
+        kwargs = {
+            'date': date
+        }
+        parameters = ''
+        for arg, value in kwargs.items():
+            parameters += f'{arg}={value}&'
+
+        for station in self.__remaining_async:
+            station_id = station['stop_id']
+            offset = station['offset']
+            endpoint = f'gtfs/stoptimes/{station_id}'
+            uri = f'{self.base_uri}{endpoint}?{parameters}limit={self.limit_per_page}&offset={offset}'
+            uris.append(uri)
+        return uris
+
+    @staticmethod
+    def __exception(request, exception):
+        print("Problem: {}: {}".format(request.url, exception))
+
+    def __callback(self, res, **kwargs):
+        responses = res.json()
+        n = len(responses)
+        if n and self.__counted_stops.get(responses[0]['stop_id']):
+            self.__remaining_async.append(
+                {
+                    'stop_id': [responses[0]['stop_id']],
+                    'offset': n + self.__counted_stops[responses[0]['stop_id']],
+                }
+            )
+            self.__counted_stops[responses[0]['stop_id']] += n
+        elif n:
+            self.__counted_stops[responses[0]['stop_id']] = n
+            self.__remaining_async.append(
+                {
+                    'stop_id': [responses[0]['stop_id']],
+                    'offset': n,
+                }
+            )
+
+    def __async_requests(self, urls):
+        self.__remaining_async = []
+        req = (grequests.get(u, headers=self.headers, hooks=dict(response=self.__callback)) for u in urls)
+        grequests.map(req, exception_handler=self.__exception, size=5)
+
+    @staticmethod
+    def _split_dict_into_n_sized_chunks(d: dict, n: int) -> Generator:
+        it = iter(d)
+        for i in range(0, len(d), n):
+            yield {k: d[k] for k in islice(it, n)}
+
     def count_stop_times_per_day(self, date: str):
         with open(self.all_stations_ids_path) as input_f:
             all_ids = json.load(input_f)
-        n_done = 0
-        n_all = len(all_ids)
-        for station, properties in all_ids.items():  # TODO wayyyyyyy toooo slow, batch requests?
-            stop_count = self._get_stop_count_for_station_per_day(station, date)
-            for child_station in properties['children']:
-                stop_count += self._get_stop_count_for_station_per_day(child_station, date)
-            properties['stop_count'] = stop_count
-            n_done += 1
-            if n_done % 100 == 0:
-                print(f'Stops counted for {n_done} stations out of {n_all}')
-        self._save_into_json(all_ids, f'{self.all_stop_count_path}_{date}.json')
+        n = 1
+        for chunk in self._split_dict_into_n_sized_chunks(all_ids, 4000):
+            urls = self._build_list_of_uris_for_count_stop(chunk, date)
+            self.__async_requests(urls)
+            while self.__remaining_async:
+                urls = self._build_list_of_uris_for_count_stop_cont(date)
+                self.__async_requests(urls)
+            self._save_into_json(self.__counted_stops, f'{self.all_stop_count_path}_{date}_{n}.json')
+
+            n += 1
+            self.__counted_stops = {}
+            print('Sleeping...')
+            time.sleep(30)
+            print('Sleeping done...')
 
 
 if __name__ == '__main__':
@@ -140,4 +211,5 @@ if __name__ == '__main__':
     golemio = GolemioApi(my_api_key_path)
     # golemio.download_all_stations()
     # golemio.filter_station_ids_enriched()
-    golemio.count_stop_times_per_day('2019-12-06')
+    golemio.count_stop_times_per_day('2019-12-07')
+
