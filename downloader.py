@@ -1,9 +1,8 @@
-from typing import Generator
+import os
+from typing import Generator, Tuple
 
 import grequests
 import requests
-from requests_threads import AsyncSession
-# import pandas as pd
 import time
 import json
 from itertools import islice
@@ -18,6 +17,7 @@ class GolemioApi:
         self.all_stations_path = 'data/all_stations.json'
         self.all_stations_ids_path = 'data/all_stations_ids.json'
         self.all_stop_count_path = 'data/all_stop_count'  # need to append '_date.json'
+        self.parent_ids_with_count_path = 'data/final-stations_with_count.json'
         self.__counted_stops = {}
 
     @staticmethod
@@ -205,11 +205,60 @@ class GolemioApi:
             time.sleep(30)
             print('Sleeping done...')
 
+    @staticmethod
+    def _copy_dict_without_keys(d: dict, invalid_keys: list) -> dict:
+        return {x: d[x] for x in d if x not in invalid_keys}
+
+    @staticmethod
+    def _get_child_parent_dict(all_ids: dict) -> dict:
+        child_parent = {}
+        for parent_station, properties in all_ids.items():
+            for child_station in properties['children']:
+                child_parent[child_station] = parent_station
+        return child_parent
+
+    def _aggregate_stop_count_per_file(self, stops: dict, all_ids: dict, all_stops: dict) -> dict:
+        child_parent = self._get_child_parent_dict(all_ids)
+        for station, count in stops.items():
+            station = child_parent[station] if station not in all_ids else station
+            if station in all_stops:
+                all_stops[station] += count
+            else:
+                all_stops[station] = count
+        return all_stops
+
+    def aggregate_stop_count(self, date: str) -> Tuple[dict, dict]:
+        with open(self.all_stations_ids_path) as input_f:
+            all_ids = json.load(input_f)
+        all_stops = {}
+        for file in os.scandir('data'):
+            if f'{self.all_stop_count_path.split("/")[1]}_{date}' in file.name:
+                with open(file.path) as stops_f:
+                    stops = json.load(stops_f)
+                    all_stops = self._aggregate_stop_count_per_file(stops, all_ids, all_stops)
+        return all_stops, all_ids
+
+    def _assign_stop_count_per_file(self, all_ids: dict, all_stops: dict, parent_stations_with_count: dict):
+        for station, properties in all_ids.items():
+            __temp_properties = self._copy_dict_without_keys(all_ids[station], ['children'])
+            __temp_properties['count'] = all_stops.get(station, 0)
+            parent_stations_with_count[station] = __temp_properties
+        return parent_stations_with_count
+
+    def assign_stop_count(self, date: str):
+        parent_ids_with_count = {}
+        all_stops, all_ids = self.aggregate_stop_count(date)
+        parent_ids_with_count = self._assign_stop_count_per_file(all_ids, all_stops, parent_ids_with_count)
+        self._save_into_json(parent_ids_with_count, self.parent_ids_with_count_path)
+        # TODO assign date somewhere to the file
+
 
 if __name__ == '__main__':
     my_api_key_path = 'golemio_api_key.json'
+    my_date = '2019-12-07'
     golemio = GolemioApi(my_api_key_path)
     # golemio.download_all_stations()
     # golemio.filter_station_ids_enriched()
-    golemio.count_stop_times_per_day('2019-12-07')
+    # golemio.count_stop_times_per_day(my_date)
+    golemio.assign_stop_count(my_date)
 
