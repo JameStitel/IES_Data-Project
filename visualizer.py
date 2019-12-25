@@ -1,5 +1,6 @@
-import pandas as pd
 import json
+
+import pandas as pd
 import plotly.express as px
 
 
@@ -30,7 +31,7 @@ class Visualizer:
         max_stop_count = df['stop_count'].max()
 
         fig = px.density_mapbox(df, lat='latitude', lon='longitude', z='stop_count', hover_name='name', radius=15,
-                                color_continuous_scale='inferno', color_continuous_midpoint=max_stop_count/2.4,
+                                color_continuous_scale='inferno', color_continuous_midpoint=max_stop_count / 2.4,
                                 center=dict(lat=49.80, lon=15.20), zoom=7, mapbox_style="open-street-map")
         fig.show()
 
@@ -38,5 +39,5 @@ class Visualizer:
 if __name__ == '__main__':
     visualizer = Visualizer()
     # print(visualizer.get_possible_dates())
-    visualizer.plot('2020-01-02')
+    # visualizer.plot('2020-01-02')
     # visualizer.plot('2019-12-07')
