@@ -1,8 +1,8 @@
 # Public transport stop frequency
 
-This project downloads available public transport data about frequency of stops per day by the public transport on all available stops. The data is downloade from **Golemio API**, "documentation" can be found here: https://golemioapi.docs.apiary.io/.
+This project downloads available public transport data about frequency of stops per day by the public transport on all available stops. The data is downloaded from **Golemio API**, "documentation" can be found here: https://golemioapi.docs.apiary.io/.
 
-*The lack of documentation can unfortunately lead to faulty behaviour, and unknown limitations. E.g. It appears, that the data can be downloaded for only 'today' and 10 days in advance. It also appears, that there are no limiations as far as number of data that can be downloaded or number of requests to the API, that can be made.*
+*The lack of documentation can unfortunately lead to faulty behaviour, and unknown limitations. E.g. It appears, that the data can be downloaded for only 'today' and 10 days in advance. It also appears, that there are no limitations as far as number of data that can be downloaded or number of requests to the API, that can be made.*
 
 ```python
 from app.downloader import GolemioApiDownloader
