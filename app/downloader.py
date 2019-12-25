@@ -360,7 +360,7 @@ class GolemioApiDownloader:
     def assign_stop_count(self, date: str, initial: bool):
         """
         Step 3 of the GolemioApiDonwloader. Assign the aggregated already downloaded all stop counts for the selected
-        dateto all the parent stations from `all_stations_ids.json`,
+        date to all the parent stations from `all_stations_ids.json`,
          and save into json file named `final-stations_with_count`.
         :param date: the selected date
         :param initial: bool whether there are already any data for stop counts or this is the initial assignment
