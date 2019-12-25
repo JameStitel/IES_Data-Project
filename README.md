@@ -45,3 +45,8 @@ visualizer = Visualizer()
 visualizer.plot('2020-01-02', zoom=6)
 # visualizer.plot('2019-12-07')
 ```
+
+Now browse the most and least frequent places across Prague and its surroundings in terms of number of public transport connections per day. :)
+
+*The brightest - most yellow are the most frequent places...*
+> Stations are aggregated based on their parent-children relations that come from the Golemio API, not by the name of the stop. Aggregating the stops by their name could make more sense in terms of the aggregated stop count, however, it may be difficult to provide relevant location for the aggregated result. Also, in the current way, it may be possible for some stations to distinguish between different types of transport (bus, subway, tram..)
