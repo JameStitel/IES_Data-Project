@@ -277,9 +277,9 @@ class GolemioApi:
 
 if __name__ == '__main__':
     my_api_key_path = 'golemio_api_key.json'
-    my_date = '2019-12-08'
+    my_date = '2020-01-02'
     golemio = GolemioApi(my_api_key_path)
     # golemio.download_all_stations()
-    golemio.filter_station_ids_enriched()
+    # golemio.filter_station_ids_enriched()
     # golemio.count_stop_times_per_day(my_date)
     # golemio.assign_stop_count(my_date, initial=False)
