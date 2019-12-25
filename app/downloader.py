@@ -8,7 +8,7 @@ import grequests
 import requests
 
 
-class GolemioApi:
+class GolemioApiDownloader:
     def __init__(self, api_key_path: str):
         self.api_key = self._load_api_key(api_key_path)
         self.headers = {'X-Access-Token': self.api_key}
@@ -276,9 +276,9 @@ class GolemioApi:
 
 
 if __name__ == '__main__':
-    my_api_key_path = 'golemio_api_key.json'
+    my_api_key_path = 'golemio_api_key.json'  # path to your Golemio API key
     my_date = '2020-01-02'
-    golemio = GolemioApi(my_api_key_path)
+    golemio = GolemioApiDownloader(my_api_key_path)
     # golemio.download_all_stations()
     # golemio.filter_station_ids_enriched()
     # golemio.count_stop_times_per_day(my_date)

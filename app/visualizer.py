@@ -25,14 +25,14 @@ class Visualizer:
     def get_possible_dates(self) -> list:
         return list(next(iter(self.load_data().values()))['count'].keys())
 
-    def plot(self, date):
+    def plot(self, date, zoom: int = 7):
         json_data = self.reformat_data(self.load_data(), date)
         df = pd.DataFrame(json_data)
         max_stop_count = df['stop_count'].max()
 
         fig = px.density_mapbox(df, lat='latitude', lon='longitude', z='stop_count', hover_name='name', radius=15,
                                 color_continuous_scale='inferno', color_continuous_midpoint=max_stop_count / 2.4,
-                                center=dict(lat=49.80, lon=15.20), zoom=7, mapbox_style="open-street-map")
+                                center=dict(lat=49.80, lon=15.20), zoom=zoom, mapbox_style="open-street-map")
         fig.show()
 
 
